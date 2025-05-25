@@ -1,551 +1,728 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 from datetime import datetime
 import os
+import glob
+from io import BytesIO
 
-# Configure page
+# Page configuration
 st.set_page_config(
-    page_title="Student Admission Analytics",
-    page_icon="🎓",
+    page_title="SMP Admission Analysis 2025-26",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# Custom CSS for professional and colorful UI
+# Custom CSS for modern UI
 st.markdown("""
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&display=swap" rel="stylesheet">
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    * {
+        font-family: 'Inter', sans-serif !important;
+    }
     
     .main-header {
-        font-family: 'Inter', sans-serif;
-        font-size: 2.2rem;
-        font-weight: 800;
-        color: #ffffff;
-        text-align: center;
-        margin-bottom: 1.5rem;
-        padding: 1rem;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 12px;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        padding: 2rem;
+        border-radius: 15px;
+        margin-bottom: 2rem;
+        text-align: center;
+        color: white;
+        font-weight: 800;
+        font-size: 2.5rem;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
     }
     
     .metric-card {
-        background: linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%);
-        padding: 1rem;
-        border-radius: 12px;
-        border: 2px solid transparent;
-        background-clip: padding-box;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        padding: 1.5rem;
+        border-radius: 15px;
         text-align: center;
-        position: relative;
-        overflow: hidden;
-    }
-    
-    .metric-card::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 4px;
-        background: linear-gradient(90deg, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4);
-    }
-    
-    .metric-value {
-        font-family: 'Inter', sans-serif;
-        font-size: 2.2rem;
+        color: white;
         font-weight: 800;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
+        margin: 0.5rem;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        transition: transform 0.3s ease;
     }
     
-    .metric-label {
-        font-family: 'Inter', sans-serif;
-        font-size: 0.9rem;
-        font-weight: 600;
-        color: #6c757d;
-        margin-top: 0.3rem;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
+    .metric-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .metric-card-red {
+        background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+    }
+    
+    .metric-card-teal {
+        background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%);
+    }
+    
+    .metric-card-blue {
+        background: linear-gradient(135deg, #45b7d1 0%, #096dd9 100%);
+    }
+    
+    .course-box {
+        padding: 1.5rem;
+        border-radius: 12px;
+        text-align: center;
+        color: white;
+        font-weight: 800;
+        margin: 0.3rem;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+        min-height: 100px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    
+    .course-ce { background: linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%); }
+    .course-me { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); }
+    .course-ee { background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%); }
+    .course-cs { background: linear-gradient(135deg, #a8caba 0%, #5d4e75 100%); }
+    .course-ec { background: linear-gradient(135deg, #d299c2 0%, #fef9d7 100%); }
+    
+    .section-separator {
+        font-size: 1.8rem;
+        font-weight: 800;
+        margin: 2rem 0 1rem 0;
+        color: #2c3e50;
+    }
+    
+    .styled-table {
+        font-size: 1.3rem;
+        font-weight: 700;
+    }
+    
+    .table-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        font-weight: 800;
+        font-size: 1.4rem;
+    }
+    
+    .subtotal-row {
+        background: linear-gradient(135deg, #ffeaa7 0%, #fab1a0 100%);
+        font-weight: 800;
+        font-size: 1.4rem;
+    }
+    
+    .grand-total-row {
+        background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%);
+        color: white;
+        font-weight: 800;
+        font-size: 1.5rem;
+    }
+    
+    .filter-container {
+        background: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 12px;
+        margin-bottom: 1rem;
+        border: 2px solid #e9ecef;
     }
     
     .stButton > button {
-        font-family: 'Inter', sans-serif;
-        width: 100%;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
         border: none;
         border-radius: 8px;
-        padding: 0.6rem 1.2rem;
+        padding: 0.5rem 1.5rem;
         font-weight: 700;
-        font-size: 0.95rem;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
         transition: all 0.3s ease;
+        font-size: 0.8rem;
     }
     
     .stButton > button:hover {
-        background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
         transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
     }
     
-    .report-section {
-        background: linear-gradient(135deg, #ffffff 0%, #f8faff 100%);
-        padding: 1.5rem;
-        border-radius: 12px;
-        margin: 0.8rem 0;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-    }
-    
-    .stDataFrame {
-        font-family: 'Inter', sans-serif;
-        font-weight: 500;
-    }
-    
-    .stDataFrame th {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    /* Reset button styling */
+    div[data-testid="column"]:nth-child(2) .stButton > button {
+        background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
         color: white;
+    }
+    
+    div[data-testid="column"]:nth-child(2) .stButton > button:hover {
+        background: linear-gradient(135deg, #ff5252 0%, #d32f2f 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
+    }
+    
+    .filter-section {
+        background: #e9ecef;
+        padding: 1rem;
+        border-radius: 8px;
+        margin: 0.5rem;
+        border: 1px solid #dee2e6;
+    }
+    
+    .filter-title {
         font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
+        font-size: 1rem;
+        color: #495057;
+        margin-bottom: 0.5rem;
+    }
+    
+    .stCheckbox > label {
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: #2c3e50;
+    }
+    
+    .stCheckbox > div {
+        background: transparent;
+        padding: 0.2rem;
+        border-radius: 4px;
+        margin: 0.1rem;
+        transition: all 0.3s ease;
+    }
+    
+    .stCheckbox > div[data-checked="true"] {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: 2px solid #5a67d8;
+        color: white;
+    }
+    
+    .stCheckbox > div[data-checked="false"] {
+        background: #f8f9fa;
+        border: 2px solid #dee2e6;
+        color: #495057;
+    }
+    
+    .stCheckbox input[type="checkbox"]:checked + div {
+        background: linear-gradient(135deg, #48bb78 0%, #38a169 100%) !important;
+        border: 2px solid #38a169 !important;
+        box-shadow: 0 2px 8px rgba(56, 161, 105, 0.3) !important;
+    }
+    
+    .stCheckbox input[type="checkbox"]:not(:checked) + div {
+        background: #f8f9fa !important;
+        border: 2px solid #dee2e6 !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+    }
+    
+    .stCheckbox label span {
+        transition: color 0.3s ease;
+    }
+    
+    .stCheckbox input[type="checkbox"]:checked + div label span {
+        color: white !important;
+        font-weight: 700 !important;
+    }
+    
+    .stSelectbox > div > div {
+        border-radius: 8px;
+        border: 2px solid #e9ecef;
     }
     
     .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
+        gap: 2px;
     }
     
     .stTabs [data-baseweb="tab"] {
-        font-family: 'Inter', sans-serif;
+        height: 50px;
+        padding: 0px 20px;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 10px 10px 0 0;
+        color: #495057;
         font-weight: 700;
-        background: linear-gradient(135deg, #f1f3f4 0%, #e8eaf6 100%);
-        border-radius: 8px;
-        color: #667eea;
-        padding: 0.5rem 1rem;
     }
     
     .stTabs [aria-selected="true"] {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
     }
-    
-    .stSubheader {
-        font-family: 'Inter', sans-serif;
-        font-weight: 700;
-        color: #2d3748;
-        border-bottom: 3px solid;
-        border-image: linear-gradient(90deg, #667eea, #764ba2) 1;
-        padding-bottom: 0.5rem;
-    }
-    
-    .stMultiSelect > div > div {
-        font-family: 'Inter', sans-serif;
-        font-weight: 600;
-    }
-    
-    h1, h2, h3, h4, h5, h6 {
-        font-family: 'Inter', sans-serif;
-        font-weight: 700;
-    }
-    
-    .metric-students { 
-        background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%); 
-        color: white; 
-    }
-    .metric-courses { 
-        background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%); 
-        color: white; 
-    }
-    .metric-years { 
-        background: linear-gradient(135deg, #45b7d1 0%, #096dd9 100%); 
-        color: white; 
-    }
 </style>
 """, unsafe_allow_html=True)
 
 @st.cache_data
 def load_data():
-    """Load and process the student data from Excel file"""
+    """Load and preprocess Excel data"""
     try:
         # Look for Excel files in the current directory
-        excel_files = [f for f in os.listdir('.') if f.endswith(('.xlsx', '.xls'))]
+        excel_files = glob.glob("*.xlsx") + glob.glob("*.xls")
         
         if not excel_files:
-            st.error("No Excel file found in the project folder. Please add your student data Excel file.")
+            st.error("No Excel files found in the project directory!")
             return None
             
-        # Use the first Excel file found
+        # Load the first Excel file found
         file_path = excel_files[0]
-        
-        # Read Excel file
         df = pd.read_excel(file_path)
         
-        # Clean column names (remove extra spaces)
+        # Standardize column names
         df.columns = df.columns.str.strip()
         
-        # Standardize column names based on the image
-        column_mapping = {
-            'Sl No': 'sl_no',
-            'Student Name': 'student_name',
-            'Father Name': 'father_name',
-            'Year': 'year',
-            'Course': 'course',
-            'Reg No': 'reg_no',
-            'Cat': 'category',
-            'Adm Type': 'admission_type',
-            'Adm Cat': 'admission_category',
-            'Date': 'date',
-            'Rpt': 'report',
-            'Admn Year': 'admission_year',
-            'In/Out': 'status',
-            'Remarks': 'remarks'
-        }
+        # Filter data: only "In" status students, exclude "Due Fee" in remarks
+        df_filtered = df[
+            (df['In/Out'].str.strip().str.upper() == 'IN') &
+            (~df['Remarks'].str.contains('Due Fee', na=False, case=False))
+        ].copy()
         
-        # Rename columns if they exist
-        for old_name, new_name in column_mapping.items():
-            if old_name in df.columns:
-                df = df.rename(columns={old_name: new_name})
+        # Convert date to dd-mmm-yy format
+        if 'Date' in df_filtered.columns:
+            df_filtered['Date'] = pd.to_datetime(df_filtered['Date'], errors='coerce')
+            df_filtered['Formatted_Date'] = df_filtered['Date'].dt.strftime('%d-%b-%y')
         
-        # Convert date column to datetime and format
-        if 'date' in df.columns:
-            df['date'] = pd.to_datetime(df['date'], errors='coerce')
-            df['date_formatted'] = df['date'].dt.strftime('%d-%b-%y')
-        
-        # Filter only admitted students ('In' status) and exclude Due Fee students
-        if 'status' in df.columns:
-            df = df[df['status'].str.upper() == 'IN']
-        
-        # Exclude students with "Due Fee" in remarks (only count paid students)
-        if 'remarks' in df.columns:
-            df = df[~df['remarks'].str.contains('Due Fee', case=False, na=False)]
-        
-        # Clean and standardize data
-        for col in ['year', 'course', 'admission_year']:
-            if col in df.columns:
-                df[col] = df[col].astype(str).str.strip()
-        
-        return df
+        return df_filtered
         
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
         return None
 
-def create_year_course_stats(df):
-    """Create year and course-wise statistics with subtotals and grand total"""
-    if df is None or df.empty:
-        return None
+def create_metric_cards(df):
+    """Create summary metric cards"""
+    total_students = len(df)
+    total_courses = df['Course'].nunique() if 'Course' in df.columns else 0
     
-    # Group by year and course
-    stats = df.groupby(['year', 'course']).agg({
-        'student_name': 'count'
-    }).reset_index()
+    col1, col2 = st.columns(2)
     
-    stats.columns = ['Year', 'Course', 'Total Students']
+    with col1:
+        st.markdown(f"""
+        <div class="metric-card metric-card-red">
+            <h2>{total_students}</h2>
+            <h4>Total Students</h4>
+        </div>
+        """, unsafe_allow_html=True)
     
-    # Add subtotals for each year
-    subtotals = []
-    years = stats['Year'].unique()
+    with col2:
+        st.markdown(f"""
+        <div class="metric-card metric-card-teal">
+            <h2>{total_courses}</h2>
+            <h4>Total Courses</h4>
+        </div>
+        """, unsafe_allow_html=True)
+
+def create_course_strength_boxes(df):
+    """Create course-wise student strength boxes"""
+    if 'Course' not in df.columns:
+        return
+        
+    course_counts = df['Course'].value_counts().sort_index()
+    courses = list(course_counts.index)
     
-    for year in years:
-        year_data = stats[stats['Year'] == year]
-        subtotal = year_data['Total Students'].sum()
-        subtotals.append({
-            'Year': f"{year} - Subtotal", 
-            'Course': '', 
-            'Total Students': subtotal
+    # Divide courses into rows if more than 5
+    if len(courses) <= 5:
+        cols = st.columns(len(courses))
+        for i, (course, count) in enumerate(course_counts.items()):
+            course_class = f"course-{course.lower()}" if course.lower() in ['ce', 'me', 'ee', 'cs', 'ec'] else 'course-cs'
+            with cols[i]:
+                st.markdown(f"""
+                <div class="course-box {course_class}">
+                    <h2>{course}</h2>
+                    <h4>{count} Students</h4>
+                </div>
+                """, unsafe_allow_html=True)
+    else:
+        # Split into multiple rows
+        mid = len(courses) // 2 + len(courses) % 2
+        row1_courses = courses[:mid]
+        row2_courses = courses[mid:]
+        
+        cols1 = st.columns(len(row1_courses))
+        for i, course in enumerate(row1_courses):
+            count = course_counts[course]
+            course_class = f"course-{course.lower()}" if course.lower() in ['ce', 'me', 'ee', 'cs', 'ec'] else 'course-cs'
+            with cols1[i]:
+                st.markdown(f"""
+                <div class="course-box {course_class}">
+                    <h2>{course}</h2>
+                    <h4>{count} Students</h4>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        cols2 = st.columns(len(row2_courses))
+        for i, course in enumerate(row2_courses):
+            count = course_counts[course]
+            course_class = f"course-{course.lower()}" if course.lower() in ['ce', 'me', 'ee', 'cs', 'ec'] else 'course-cs'
+            with cols2[i]:
+                st.markdown(f"""
+                <div class="course-box {course_class}">
+                    <h2>{course}</h2>
+                    <h4>{count} Students</h4>
+                </div>
+                """, unsafe_allow_html=True)
+
+def create_year_course_stats_table(df):
+    """Create year-course statistics table with styling"""
+    if 'Year' not in df.columns or 'Course' not in df.columns:
+        return
+        
+    # Create pivot table
+    stats_table = df.groupby(['Year', 'Course']).size().reset_index(name='Total Students')
+    
+    # Create a formatted table for display
+    display_data = []
+    
+    for year in sorted(df['Year'].unique()):
+        year_data = stats_table[stats_table['Year'] == year]
+        
+        for _, row in year_data.iterrows():
+            display_data.append({
+                'Year': row['Year'],
+                'Course': row['Course'],
+                'Total Students': row['Total Students']
+            })
+        
+        # Add subtotal row
+        year_total = year_data['Total Students'].sum()
+        display_data.append({
+            'Year': f'**{year} - Subtotal**',
+            'Course': '**All Courses**',
+            'Total Students': f'**{year_total}**'
         })
     
     # Add grand total
-    grand_total = stats['Total Students'].sum()
-    subtotals.append({
-        'Year': 'GRAND TOTAL', 
-        'Course': '', 
-        'Total Students': grand_total
+    grand_total = df.shape[0]
+    display_data.append({
+        'Year': '**GRAND TOTAL**',
+        'Course': '**ALL YEARS**',
+        'Total Students': f'**{grand_total}**'
     })
     
-    # Combine stats with subtotals
-    final_stats = []
-    for year in years:
-        year_data = stats[stats['Year'] == year].to_dict('records')
-        final_stats.extend(year_data)
-        final_stats.append(next(s for s in subtotals if s['Year'] == f"{year} - Subtotal"))
+    display_df = pd.DataFrame(display_data)
     
-    final_stats.append(subtotals[-1])  # Grand total
+    st.markdown('<div class="section-separator">📊 Year & Course Statistics</div>', unsafe_allow_html=True)
+    st.dataframe(
+        display_df,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Year": st.column_config.TextColumn("Year", width="medium"),
+            "Course": st.column_config.TextColumn("Course", width="medium"),
+            "Total Students": st.column_config.TextColumn("Total Students", width="medium")
+        }
+    )
+
+def create_course_chart(df):
+    """Create course-wise bar chart"""
+    if 'Course' not in df.columns:
+        return
+        
+    course_year_stats = df.groupby(['Course', 'Year']).size().reset_index(name='Students')
     
-    return pd.DataFrame(final_stats), stats
+    fig = px.bar(
+        course_year_stats,
+        x='Course',
+        y='Students',
+        color='Year',
+        title='Course-wise Student Distribution by Academic Year',
+        text='Students',
+        color_discrete_sequence=px.colors.qualitative.Set3
+    )
+    
+    fig.update_layout(
+        font_family="Inter",
+        font_size=14,
+        title_font_size=18,
+        title_font_family="Inter",
+        title_font_color="#2c3e50",
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        height=500
+    )
+    
+    fig.update_traces(texttemplate='%{text}', textposition='outside')
+    fig.update_xaxes(title_font_size=16, tickfont_size=14)
+    fig.update_yaxes(title_font_size=16, tickfont_size=14)
+    
+    st.plotly_chart(fig, use_container_width=True)
 
 def create_datewise_stats(df):
-    """Create date-wise admission statistics with totals"""
-    if df is None or df.empty or 'date' not in df.columns:
-        return None
-    
+    """Create date-wise admission statistics"""
+    if 'Formatted_Date' not in df.columns or 'Course' not in df.columns:
+        return
+        
     # Group by date and course
-    date_stats = df.groupby(['date_formatted', 'course']).size().reset_index()
-    date_stats.columns = ['Date', 'Course', 'Admissions']
+    date_stats = df.groupby(['Formatted_Date', 'Course']).size().reset_index(name='Admissions')
     
-    # Add subtotals for each date
-    subtotals = []
-    dates = date_stats['Date'].unique()
+    # Create display table with subtotals
+    display_data = []
     
-    for date in dates:
-        date_data = date_stats[date_stats['Date'] == date]
-        subtotal = date_data['Admissions'].sum()
-        subtotals.append({
-            'Date': f"{date} - Subtotal", 
-            'Course': '', 
-            'Admissions': subtotal
+    for date in sorted(df['Formatted_Date'].unique(), key=lambda x: pd.to_datetime(x, format='%d-%b-%y')):
+        date_data = date_stats[date_stats['Formatted_Date'] == date]
+        
+        for _, row in date_data.iterrows():
+            display_data.append({
+                'Date': row['Formatted_Date'],
+                'Course': row['Course'],
+                'Admissions': row['Admissions']
+            })
+        
+        # Add subtotal
+        date_total = date_data['Admissions'].sum()
+        display_data.append({
+            'Date': f'**{date} - Subtotal**',
+            'Course': '**All Courses**',
+            'Admissions': f'**{date_total}**'
         })
     
     # Add grand total
-    grand_total = date_stats['Admissions'].sum()
-    subtotals.append({
-        'Date': 'GRAND TOTAL', 
-        'Course': '', 
-        'Admissions': grand_total
+    grand_total = df.shape[0]
+    display_data.append({
+        'Date': '**GRAND TOTAL**',
+        'Course': '**ALL DATES**',
+        'Admissions': f'**{grand_total}**'
     })
     
-    # Combine stats with subtotals
-    final_stats = []
-    for date in dates:
-        date_data = date_stats[date_stats['Date'] == date].to_dict('records')
-        final_stats.extend(date_data)
-        final_stats.append(next(s for s in subtotals if s['Date'] == f"{date} - Subtotal"))
+    display_df = pd.DataFrame(display_data)
     
-    final_stats.append(subtotals[-1])  # Grand total
+    st.markdown('<div class="section-separator">📅 Date-wise Admission Statistics</div>', unsafe_allow_html=True)
+    st.dataframe(
+        display_df,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Date": st.column_config.TextColumn("Date", width="medium"),
+            "Course": st.column_config.TextColumn("Course", width="medium"),
+            "Admissions": st.column_config.TextColumn("Admissions", width="medium")
+        }
+    )
     
-    return pd.DataFrame(final_stats)
+    # Create chart
+    chart_data = df.groupby(['Formatted_Date', 'Course']).size().reset_index(name='Admissions')
+    
+    fig = px.bar(
+        chart_data,
+        x='Formatted_Date',
+        y='Admissions',
+        color='Course',
+        title='Daily Admission Trends by Course',
+        text='Admissions',
+        color_discrete_sequence=px.colors.qualitative.Set2
+    )
+    
+    fig.update_layout(
+        font_family="Inter",
+        font_size=14,
+        title_font_size=18,
+        title_font_family="Inter",
+        title_font_color="#2c3e50",
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        height=500,
+        xaxis_tickangle=-45
+    )
+    
+    fig.update_traces(texttemplate='%{text}', textposition='outside')
+    fig.update_xaxes(title_font_size=16, tickfont_size=14)
+    fig.update_yaxes(title_font_size=16, tickfont_size=14)
+    
+    st.plotly_chart(fig, use_container_width=True)
 
-def create_course_student_list(df, selected_years=None, selected_courses=None):
-    """Create filtered student list by course with serial numbers and totals"""
-    if df is None or df.empty:
-        return None
+def create_student_list_tab(df):
+    """Create filtered student list with export functionality"""
+    st.markdown('<div class="section-separator">👥 Student List with Filters</div>', unsafe_allow_html=True)
     
-    filtered_df = df.copy()
+    # Create two columns for Year and Course filters
+    filter_col1, filter_col2 = st.columns(2)
     
-    # Apply filters
-    if selected_years and len(selected_years) > 0:
-        filtered_df = filtered_df[filtered_df['year'].isin(selected_years)]
+    # Year filter section
+    with filter_col1:
+        st.markdown('<div class="filter-section">', unsafe_allow_html=True)
+        st.markdown('<div class="filter-title">Year</div>', unsafe_allow_html=True)
+        
+        available_years = sorted(df['Year'].unique()) if 'Year' in df.columns else []
+        
+        # Initialize session state for years (default: unchecked)
+        if 'selected_years' not in st.session_state:
+            st.session_state.selected_years = []
+        
+        # Check if all years are selected for "All" checkbox state
+        all_years_selected = len(st.session_state.selected_years) == len(available_years) and set(st.session_state.selected_years) == set(available_years)
+        
+        # All checkbox for years with toggle logic
+        if st.checkbox("All", value=all_years_selected, key="all_years"):
+            # If "All" is checked, select all years
+            st.session_state.selected_years = available_years.copy()
+        else:
+            # If "All" is unchecked, clear all years
+            if all_years_selected:  # Only clear if it was previously all selected
+                st.session_state.selected_years = []
+        
+        # Individual year checkboxes in rows
+        year_rows = [available_years[i:i+3] for i in range(0, len(available_years), 3)]
+        for row in year_rows:
+            year_cols = st.columns(len(row))
+            for i, year in enumerate(row):
+                with year_cols[i]:
+                    is_checked = year in st.session_state.selected_years
+                    # Individual checkbox change
+                    if st.checkbox(year, value=is_checked, key=f"year_{year}"):
+                        if year not in st.session_state.selected_years:
+                            st.session_state.selected_years.append(year)
+                    else:
+                        if year in st.session_state.selected_years:
+                            st.session_state.selected_years.remove(year)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
     
-    if selected_courses and len(selected_courses) > 0:
-        filtered_df = filtered_df[filtered_df['course'].isin(selected_courses)]
+    # Course filter section
+    with filter_col2:
+        st.markdown('<div class="filter-section">', unsafe_allow_html=True)
+        st.markdown('<div class="filter-title">Course</div>', unsafe_allow_html=True)
+        
+        available_courses = sorted(df['Course'].unique()) if 'Course' in df.columns else []
+        
+        # Initialize session state for courses (default: unchecked)
+        if 'selected_courses' not in st.session_state:
+            st.session_state.selected_courses = []
+        
+        # Check if all courses are selected for "All" checkbox state
+        all_courses_selected = len(st.session_state.selected_courses) == len(available_courses) and set(st.session_state.selected_courses) == set(available_courses)
+        
+        # All checkbox for courses with toggle logic
+        if st.checkbox("All", value=all_courses_selected, key="all_courses"):
+            # If "All" is checked, select all courses
+            st.session_state.selected_courses = available_courses.copy()
+        else:
+            # If "All" is unchecked, clear all courses
+            if all_courses_selected:  # Only clear if it was previously all selected
+                st.session_state.selected_courses = []
+        
+        # Individual course checkboxes in rows
+        course_rows = [available_courses[i:i+3] for i in range(0, len(available_courses), 3)]
+        for row in course_rows:
+            course_cols = st.columns(len(row))
+            for i, course in enumerate(row):
+                with course_cols[i]:
+                    is_checked = course in st.session_state.selected_courses
+                    # Individual checkbox change
+                    if st.checkbox(course, value=is_checked, key=f"course_{course}"):
+                        if course not in st.session_state.selected_courses:
+                            st.session_state.selected_courses.append(course)
+                    else:
+                        if course in st.session_state.selected_courses:
+                            st.session_state.selected_courses.remove(course)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
     
-    # Select relevant columns for display
-    display_columns = ['student_name', 'father_name', 'year', 'course', 
-                      'admission_year', 'category', 'date_formatted']
+    st.markdown("---")
     
-    available_columns = [col for col in display_columns if col in filtered_df.columns]
-    student_list = filtered_df[available_columns].copy()
+    # Reset and Generate buttons
+    col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 2])
     
-    # Add serial number column
-    if not student_list.empty:
-        student_list.insert(0, 'Sl No', range(1, len(student_list) + 1))
-        student_list['Sl No'] = student_list['Sl No'].apply(lambda x: f"{x:02d}")
+    with col2:
+        if st.button("🔄 Reset", use_container_width=True):
+            st.session_state.selected_years = []
+            st.session_state.selected_courses = []
+            st.rerun()
     
-    # Rename columns for display
-    column_names = {
-        'student_name': 'Student Name',
-        'father_name': 'Father Name',
-        'year': 'Year',
-        'course': 'Course',
-        'admission_year': 'Admission Year',
-        'category': 'Category',
-        'date_formatted': 'Date'
-    }
+    with col4:
+        generate_list = st.button("📋 Generate List", use_container_width=True)
     
-    student_list = student_list.rename(columns=column_names)
+    st.markdown("---")
     
-    # Add total count row
-    if not student_list.empty:
-        total_count = len(student_list)
-        total_row = pd.DataFrame([{
-            'Sl No': '',
-            'Student Name': f'TOTAL STUDENTS: {total_count}',
-            'Father Name': '',
-            'Year': '',
-            'Course': '',
-            'Admission Year': '',
-            'Category': '',
-            'Date': ''
-        }])
-        student_list = pd.concat([student_list, total_row], ignore_index=True)
-    
-    return student_list
+    # Display data only when Generate List button is clicked
+    if generate_list:
+        if st.session_state.selected_years and st.session_state.selected_courses:
+            filtered_df = df[
+                (df['Year'].isin(st.session_state.selected_years)) &
+                (df['Course'].isin(st.session_state.selected_courses))
+            ].copy()
+            
+            if not filtered_df.empty:
+                # Add serial number (remove existing Sl No column if present)
+                filtered_df.reset_index(drop=True, inplace=True)
+                if 'Sl No' in filtered_df.columns:
+                    filtered_df.drop('Sl No', axis=1, inplace=True)
+                filtered_df.insert(0, 'Sl No', range(1, len(filtered_df) + 1))
+                filtered_df['Sl No'] = filtered_df['Sl No'].apply(lambda x: f"{x:02d}")
+                
+                # Select and reorder columns for display
+                display_columns = ['Sl No', 'Student Name', 'Father Name', 'Year', 'Course']
+                
+                # Add additional columns if they exist
+                optional_columns = ['Admn Year', 'Cat', 'Formatted_Date']
+                for col in optional_columns:
+                    if col in filtered_df.columns:
+                        if col == 'Formatted_Date':
+                            display_columns.append('Date')
+                            filtered_df['Date'] = filtered_df['Formatted_Date']
+                        else:
+                            display_columns.append(col)
+                
+                # Filter to available columns
+                available_display_columns = [col for col in display_columns if col in filtered_df.columns]
+                student_list = filtered_df[available_display_columns]
+                
+                # Add total count row
+                total_row = pd.DataFrame([['**TOTAL**'] + [''] * (len(available_display_columns) - 2) + [f'**{len(student_list)} Students**']], 
+                                       columns=available_display_columns)
+                display_list = pd.concat([student_list, total_row], ignore_index=True)
+                
+                st.dataframe(
+                    display_list,
+                    use_container_width=True,
+                    hide_index=True,
+                    height=400
+                )
+                
+                # Download button
+                csv_buffer = BytesIO()
+                student_list.to_csv(csv_buffer, index=False)
+                csv_buffer.seek(0)
+                
+                st.download_button(
+                    label="📥 Download CSV",
+                    data=csv_buffer.getvalue(),
+                    file_name=f"student_list_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv",
+                    use_container_width=False
+                )
+                
+            else:
+                st.warning("No students found with the selected filters.")
+        else:
+            st.error("Please select at least one year and one course before generating the list.")
 
 def main():
+    """Main application function"""
     # Header
-    st.markdown('<div class="main-header">🎓 Student Admission Analytics</div>', 
-                unsafe_allow_html=True)
+    st.markdown("""
+    <div class="main-header">
+        SMP Admission Analysis 2025-26
+    </div>
+    """, unsafe_allow_html=True)
     
     # Load data
     df = load_data()
     
-    if df is None:
-        st.stop()
+    if df is None or df.empty:
+        st.error("No valid data found. Please ensure your Excel file is in the project directory and contains the required columns.")
+        return
     
-    # Navigation tabs
+    # Create tabs
     tab1, tab2, tab3 = st.tabs(["📈 Year & Course Statistics", "📅 Date-wise Admissions", "👥 Student List"])
     
     with tab1:
-        st.markdown('<div class="report-section">', unsafe_allow_html=True)
+        # Summary metrics
+        create_metric_cards(df)
         
-        final_stats, stats = create_year_course_stats(df)
+        st.markdown('<div style="margin: 2rem 0;"></div>', unsafe_allow_html=True)
         
-        if final_stats is not None:
-            # Summary metrics with different colors
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                total_students = stats['Total Students'].sum()
-                st.markdown(f"""
-                <div class="metric-card metric-students">
-                    <div class="metric-value" style="color: white;">{total_students}</div>
-                    <div class="metric-label" style="color: #ffe6e6;">Total Students</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col2:
-                total_courses = df['course'].nunique()
-                st.markdown(f"""
-                <div class="metric-card metric-courses">
-                    <div class="metric-value" style="color: white;">{total_courses}</div>
-                    <div class="metric-label" style="color: #e6fffe;">Total Courses</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col3:
-                total_years = df['year'].nunique()
-                st.markdown(f"""
-                <div class="metric-card metric-years">
-                    <div class="metric-value" style="color: white;">{total_years}</div>
-                    <div class="metric-label" style="color: #e6f7ff;">Academic Years</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Statistics table
-            st.subheader("📋 Statistics Table")
-            
-            # Style the dataframe for better presentation
-            def style_dataframe(df):
-                def highlight_totals(row):
-                    if 'Subtotal' in str(row['Year']) or 'GRAND TOTAL' in str(row['Year']):
-                        return ['background-color: #f1f3f4; font-weight: bold; color: #2d3748'] * len(row)
-                    return [''] * len(row)
-                return df.style.apply(highlight_totals, axis=1)
-            
-            styled_df = style_dataframe(final_stats)
-            st.dataframe(styled_df, use_container_width=True, hide_index=True)
-            
-            # Bar chart visualization
-            st.subheader("📊 Course-wise Distribution")
-            fig_bar = px.bar(stats, x='Course', y='Total Students', color='Year',
-                           title="Student Distribution by Course and Year",
-                           color_discrete_sequence=['#667eea', '#764ba2', '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4'])
-            fig_bar.update_layout(
-                showlegend=True, 
-                height=400,
-                title_font_family="Inter",
-                title_font_size=18,
-                title_font_color="#2d3748",
-                font_family="Inter",
-                font_color="#2d3748"
-            )
-            st.plotly_chart(fig_bar, use_container_width=True)
+        # Course strength boxes
+        st.markdown('<div class="section-separator">🎯 Course-wise Student Strength</div>', unsafe_allow_html=True)
+        create_course_strength_boxes(df)
         
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown('<div style="margin: 2rem 0;"></div>', unsafe_allow_html=True)
+        
+        # Statistics table
+        create_year_course_stats_table(df)
+        
+        st.markdown('<div style="margin: 2rem 0;"></div>', unsafe_allow_html=True)
+        
+        # Bar chart
+        st.markdown('<div class="section-separator">📊 Course Distribution Chart</div>', unsafe_allow_html=True)
+        create_course_chart(df)
     
     with tab2:
-        st.markdown('<div class="report-section">', unsafe_allow_html=True)
-        
-        date_stats = create_datewise_stats(df)
-        
-        if date_stats is not None:
-            st.subheader("📋 Date-wise Admission Table")
-            
-            # Style the dataframe for better presentation
-            def style_date_dataframe(df):
-                def highlight_totals(row):
-                    if 'Subtotal' in str(row['Date']) or 'GRAND TOTAL' in str(row['Date']):
-                        return ['background-color: #f1f3f4; font-weight: bold; color: #2d3748'] * len(row)
-                    return [''] * len(row)
-                return df.style.apply(highlight_totals, axis=1)
-            
-            styled_date_df = style_date_dataframe(date_stats)
-            st.dataframe(styled_date_df, use_container_width=True, hide_index=True)
-            
-            # Filter out total rows for chart
-            chart_data = date_stats[
-                (~date_stats['Date'].str.contains('Subtotal', na=False)) & 
-                (~date_stats['Date'].str.contains('GRAND TOTAL', na=False))
-            ]
-            
-            if not chart_data.empty:
-                st.subheader("📊 Daily Admission Trends")
-                fig_line = px.bar(chart_data, x='Date', y='Admissions', 
-                                color='Course', title="Daily Admissions by Course",
-                                color_discrete_sequence=['#667eea', '#764ba2', '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4'])
-                fig_line.update_layout(
-                    xaxis_tickangle=-45, 
-                    height=400,
-                    title_font_family="Inter",
-                    title_font_size=18,
-                    title_font_color="#2d3748",
-                    font_family="Inter",
-                    font_color="#2d3748"
-                )
-                st.plotly_chart(fig_line, use_container_width=True)
-        
-        st.markdown("</div>", unsafe_allow_html=True)
+        create_datewise_stats(df)
     
     with tab3:
-        st.markdown('<div class="report-section">', unsafe_allow_html=True)
-        
-        # Filter controls
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("🎓 Year Filter")
-            available_years = sorted(df['year'].unique())
-            selected_years = st.multiselect("Select Years:", available_years, default=available_years)
-        
-        with col2:
-            st.subheader("📚 Course Filter")
-            available_courses = sorted(df['course'].unique())
-            selected_courses = st.multiselect("Select Courses:", available_courses, default=available_courses)
-        
-        # Generate filtered list
-        if st.button("🔍 Generate List", type="primary"):
-            student_list = create_course_student_list(df, selected_years, selected_courses)
-            
-            if student_list is not None and not student_list.empty:
-                st.subheader("📋 Student List")
-                
-                # Style the student list dataframe
-                def style_student_dataframe(df):
-                    def highlight_total(row):
-                        if 'TOTAL STUDENTS:' in str(row['Student Name']):
-                            return ['background-color: #667eea; font-weight: bold; color: white'] * len(row)
-                        return [''] * len(row)
-                    return df.style.apply(highlight_total, axis=1)
-                
-                styled_student_df = style_student_dataframe(student_list)
-                st.dataframe(styled_student_df, use_container_width=True, hide_index=True)
-                
-                # Download button
-                csv = student_list.to_csv(index=False)
-                st.download_button(
-                    label="📥 Download CSV",
-                    data=csv,
-                    file_name=f"students_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv"
-                )
-            else:
-                st.warning("No students found with the selected filters.")
-        
-        st.markdown("</div>", unsafe_allow_html=True)
+        create_student_list_tab(df)
 
 if __name__ == "__main__":
     main()
