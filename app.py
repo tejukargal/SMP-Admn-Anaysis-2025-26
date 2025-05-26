@@ -239,18 +239,32 @@ st.markdown("""
 
 @st.cache_data
 def load_data():
-    """Load and preprocess Excel data"""
+    """Load and preprocess CSV data"""
     try:
-        # Look for Excel files in the current directory
-        excel_files = glob.glob("*.xlsx") + glob.glob("*.xls")
+        # Look for CSV files in the current directory
+        csv_files = glob.glob("*.csv")
         
-        if not excel_files:
-            st.error("No Excel files found in the project directory!")
+        if not csv_files:
+            st.error("No CSV files found in the project directory!")
             return None
             
-        # Load the first Excel file found
-        file_path = excel_files[0]
-        df = pd.read_excel(file_path)
+        # Load the first CSV file found
+        file_path = csv_files[0]
+        
+        # Try different encodings for CSV reading
+        encodings = ['utf-8', 'latin-1', 'cp1252', 'iso-8859-1']
+        df = None
+        
+        for encoding in encodings:
+            try:
+                df = pd.read_csv(file_path, encoding=encoding)
+                break
+            except UnicodeDecodeError:
+                continue
+        
+        if df is None:
+            st.error(f"Could not read CSV file with any supported encoding. Please ensure the file is properly formatted.")
+            return None
         
         # Standardize column names
         df.columns = df.columns.str.strip()
@@ -691,7 +705,7 @@ def main():
     df = load_data()
     
     if df is None or df.empty:
-        st.error("No valid data found. Please ensure your Excel file is in the project directory and contains the required columns.")
+        st.error("No valid data found. Please ensure your CSV file is in the project directory and contains the required columns.")
         return
     
     # Create tabs
